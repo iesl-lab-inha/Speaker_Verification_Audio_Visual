@@ -1,0 +1,94 @@
+# ################################
+# Model: Speaker Verification
+# TDNN + BiLSTM + MHA Pooling + Cosine Similarity
+# ################################
+
+seed: 1234
+__set_seed: !apply:speechbrain.utils.seed_everything [!ref <seed>]
+
+# ----------------------------------------------------------------------
+# PATHS
+# ----------------------------------------------------------------------
+data_folder: /YOUR/ABSOLUTE/PATH/TO/VOXCELEB
+output_folder: results/tdnn_bilstm_mha_verify/<seed>
+save_folder: !ref <output_folder>/save/
+
+# Official verification split
+verification_file: /YOUR/ABSOLUTE/PATH/TO/veri_test2.txt
+
+# Path to your trained checkpoint directory
+# This should be the save folder produced by training
+pretrain_path: /YOUR/ABSOLUTE/PATH/TO/results/tdnn_bilstm_mha_aam/1986/save
+
+# CSV files
+train_data: !ref <save_folder>/train.csv
+enrol_data: !ref <save_folder>/enrol.csv
+test_data: !ref <save_folder>/test.csv
+
+split_ratio: [90, 10]
+skip_prep: False
+
+# ----------------------------------------------------------------------
+# VERIFICATION SETTINGS
+# ----------------------------------------------------------------------
+batch_size: 8
+score_norm: s-norm   # options: z-norm / t-norm / s-norm
+cohort_size: 20000
+n_train_snts: 400000
+
+# ----------------------------------------------------------------------
+# FEATURE PARAMETERS
+# ----------------------------------------------------------------------
+n_mels: 80
+left_frames: 0
+right_frames: 0
+deltas: False
+
+# ----------------------------------------------------------------------
+# DATALOADER OPTIONS
+# ----------------------------------------------------------------------
+train_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+enrol_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+test_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+# ----------------------------------------------------------------------
+# FEATURE EXTRACTION
+# ----------------------------------------------------------------------
+compute_features: !new:speechbrain.lobes.features.Fbank
+    n_mels: !ref <n_mels>
+    left_frames: !ref <left_frames>
+    right_frames: !ref <right_frames>
+    deltas: !ref <deltas>
+
+mean_var_norm: !new:speechbrain.processing.features.InputNormalization
+    norm_type: sentence
+    std_norm: False
+
+# ----------------------------------------------------------------------
+# CUSTOM EMBEDDING MODEL
+# ----------------------------------------------------------------------
+embedding_model: !new:custom_model.TDNNBiLSTMMHAModel
+    input_size: !ref <n_mels>
+    tdnn_channels: [512, 512, 512]
+    tdnn_kernel_sizes: [5, 3, 3]
+    lstm_hidden_size: 1024
+    lstm_projection_size: 256
+    lstm_bidirectional: True
+    mha_heads: 5
+    embedding_dim: 192
+    dropout: 0.1
+
+# ----------------------------------------------------------------------
+# LOAD TRAINED CHECKPOINT
+# ----------------------------------------------------------------------
+pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
+    collect_in: !ref <save_folder>
+    loadables:
+        embedding_model: !ref <embedding_model>
+    paths:
+        embedding_model: !ref <pretrain_path>/embedding_model.ckpt
